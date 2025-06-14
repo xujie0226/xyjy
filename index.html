@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>儿童测评结果查询</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    label, select, input, button {
+      display: block;
+      margin: 10px 0;
+    }
+    #result {
+      margin-top: 30px;
+    }
+    canvas {
+      max-width: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h2>儿童测评结果查询系统</h2>
+
+  <label>选择幼儿园：</label>
+  <select id="kindergarten">
+    <option value="A幼儿园">A幼儿园</option>
+    <option value="B幼儿园">B幼儿园</option>
+  </select>
+
+  <label>输入儿童姓名：</label>
+  <input type="text" id="childName" placeholder="例如：张小明">
+
+  <button onclick="queryChild()">查询</button>
+
+  <div id="result"></div>
+  <canvas id="radarChart"></canvas>
+
+  <script>
+    // 示例数据：每个儿童有原始得分
+    const rawData = {
+      "A幼儿园": {
+        "张小明": { "语言": 44, "数学": 15, "情绪": 18 },
+        "李小红": { "语言": 38, "数学": 20, "情绪": 22 }
+      },
+      "B幼儿园": {
+        "王小军": { "语言": 40, "数学": 25, "情绪": 14 }
+      }
+    };
+
+    // 各维度均值和标准差
+    const normStats = {
+      "语言": { mean: 40, sd: 3 },
+      "数学": { mean: 20, sd: 4 },
+      "情绪": { mean: 18, sd: 2 }
+    };
+
+    // 维度解释模板
+    const interpretation = {
+      "语言": {
+        high: "语言能力优秀，表达清晰，有较强的词汇掌握能力。",
+        medium: "语言能力处于中等水平，能够基本完成表达任务。",
+        low: "语言能力略弱，建议多进行词汇积累和亲子交流。"
+      },
+      "数学": {
+        high: "数学认知良好，具有较强的数理逻辑能力。",
+        medium: "数学能力正常，可通过游戏活动进一步提升。",
+        low: "数学发展需加强，建议多做数概念活动。"
+      },
+      "情绪": {
+        high: "情绪调节能力强，表现出良好的自我控制。",
+        medium: "情绪发展适中，能基本适应日常情境。",
+        low: "情绪调节待提升，建议营造稳定的情绪支持环境。"
+      }
+    };
+
+    let chartInstance = null;
+
+    function queryChild() {
+      const kg = document.getElementById("kindergarten").value;
+      const name = document.getElementById("childName").value.trim();
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = "";
+
+      const child = rawData[kg]?.[name];
+
+      if (!child) {
+        resultDiv.textContent = "未找到该儿童的测评信息。";
+        if (chartInstance) chartInstance.destroy();
+        return;
+      }
+
+      // 计算Z分和解释
+      const zScores = {};
+      const labels = Object.keys(child);
+      const data = [];
+
+      labels.forEach(key => {
+        const score = child[key];
+        const mean = normStats[key].mean;
+        const sd = normStats[key].sd;
+        const z = ((score - mean) / sd).toFixed(2);
+        zScores[key] = parseFloat(z);
+        data.push(parseFloat(z));
+      });
+
+      // 显示解释文本
+      labels.forEach(label => {
+        const z = zScores[label];
+        let level = "medium";
+        if (z > 1) level = "high";
+        else if (z < -1) level = "low";
+        const text = `<p><b>${label}</b>（Z=${z}）：${interpretation[label][level]}</p>`;
+        resultDiv.innerHTML += text;
+      });
+
+      // 生成雷达图
+      const ctx = document.getElementById("radarChart");
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: "radar",
+        data: {
+          labels: labels,
